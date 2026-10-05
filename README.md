@@ -44,6 +44,7 @@ Without Supabase credentials the page still renders; the form returns a friendly
 | `SUPABASE_SERVICE_ROLE_KEY` | server | Service role key. Never expose it to the browser or commit it |
 | `RESEND_API_KEY` | server | Resend API key |
 | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | public | Optional. Your Plausible site domain; enables the `waitlist_signup` event |
+| `ADMIN_PASSWORD` | server | Password for `/admin` (12+ characters). Store as a **secret** |
 | `EMAIL_FROM` | server | Sender, e.g. `DealDesk <support@craftloop.ca>` (domain must be verified in Resend) |
 
 Secrets live in `.env.local` (git-ignored). Only `.env.example` is committed.
@@ -102,6 +103,7 @@ The domain's DNS is already on Cloudflare, so hosting, TLS and DNS all stay in o
    - `SUPABASE_SERVICE_ROLE_KEY` (**secret**)
    - `RESEND_API_KEY` (**secret**)
    - `EMAIL_FROM` = `DealDesk <support@craftloop.ca>` (text)
+   - `ADMIN_PASSWORD` (**secret**, 12+ characters)
 7. Custom domain: Worker **Settings → Domains & Routes → Add → Custom domain**, enter `dealdesk.craftloop.ca`. Because `craftloop.ca` is on Cloudflare, the DNS record and certificate are created automatically. No manual CNAME is needed.
 8. Optional pageview analytics: **Analytics & Logs → Web Analytics → Add a site** for `dealdesk.craftloop.ca` (free).
 9. Optional hardening: add a **Security → WAF → Rate limiting rule** for path `/api/waitlist` (the in-app limiter is per Worker isolate only).
@@ -109,6 +111,14 @@ The domain's DNS is already on Cloudflare, so hosting, TLS and DNS all stay in o
 Manual deploy from your machine: `npx wrangler login`, then `npm run deploy`.
 
 Resend DNS records (section above) are added in the Cloudflare **DNS** tab as **DNS only** records.
+
+## Admin dashboard
+
+`/admin` shows total signups, today / 7-day / 30-day counts, a 30-day chart, a platform breakdown and a searchable, paginated signup table with CSV export. Times are UTC.
+
+- Sign in with `ADMIN_PASSWORD` (12+ characters). The session is a signed, httpOnly, same-site cookie valid for 7 days; changing the password signs everyone out.
+- Login is rate limited, `/admin` is `noindex` and disallowed in `robots.txt`.
+- For defense in depth, also put **Cloudflare Access** (Zero Trust, free up to 50 users) in front of `/admin*` and `/api/admin/*`.
 
 ## Waitlist API
 
