@@ -6,7 +6,7 @@ import { Reveal } from "@/components/reveal";
 export function Hero() {
   return (
     <section id="top" className="relative isolate overflow-hidden pb-20 pt-32 sm:pt-40">
-      <div className="hero-glow absolute inset-0 -z-10" aria-hidden="true" />
+      <div className="hero-glow absolute inset-0 -z-10 [mask-image:linear-gradient(to_bottom,black_65%,transparent)]" aria-hidden="true" />
       <div
         className="dot-grid absolute inset-0 -z-10 [mask-image:linear-gradient(to_bottom,black,transparent_85%)]"
         aria-hidden="true"
@@ -40,13 +40,13 @@ export function Hero() {
         </Reveal>
 
         <Reveal delay={0.3} y={40} className="relative mt-16">
-          <div className="pointer-events-none absolute -left-2 top-10 z-20 hidden lg:block" aria-hidden="true">
+          <div className="pointer-events-none absolute left-0 top-12 z-20 hidden xl:block" aria-hidden="true">
             <div className="glass animate-float rounded-2xl px-4 py-3 text-left text-sm">
               <p className="font-display font-bold">⏰ Deliverable due tomorrow</p>
               <p className="text-xs text-muted">Brewline · Twitch stream</p>
             </div>
           </div>
-          <div className="pointer-events-none absolute -right-2 bottom-16 z-20 hidden lg:block" aria-hidden="true">
+          <div className="pointer-events-none absolute right-0 bottom-20 z-20 hidden xl:block" aria-hidden="true">
             <div className="glass animate-float rounded-2xl px-4 py-3 text-left text-sm [animation-delay:-3s]">
               <p className="font-display font-bold text-[#c0270a] dark:text-[#ff8a7a]">⚠ Invoice 4 days overdue</p>
               <p className="text-xs text-muted">Nova Skincare · $1,800</p>
