@@ -18,3 +18,20 @@ alter table public.waitlist enable row level security;
 -- The API route (service role) needs these, or inserts fail with "permission denied".
 grant usage on schema public to service_role;
 grant select, insert on table public.waitlist to service_role;
+
+-- Visitor analytics (first-party, no cookies, no IP stored).
+-- `visitor` is a daily-rotating salted hash, so it can count unique visitors per day but cannot identify anyone.
+create table if not exists public.page_views (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  visitor text not null,
+  path text not null,
+  referrer text,
+  country text
+);
+
+create index if not exists page_views_created_at_idx on public.page_views (created_at);
+
+alter table public.page_views enable row level security;
+
+grant insert, select on table public.page_views to service_role;

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
 import Script from "next/script";
 import { Providers } from "@/components/providers";
+import { PageViewTracker } from "@/components/page-view-tracker";
 import { APP_NAME, DESCRIPTION, PARENT_BRAND, PARENT_URL, SITE_URL, TAGLINE } from "@/lib/config";
 import "./globals.css";
 
@@ -78,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <Providers>{children}</Providers>
+        <PageViewTracker />
         {plausibleDomain && (
           <Script
             defer

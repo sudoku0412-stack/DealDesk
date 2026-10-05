@@ -114,8 +114,9 @@ Resend DNS records (section above) are added in the Cloudflare **DNS** tab as **
 
 ## Admin dashboard
 
-`/admin` shows total signups, today / 7-day / 30-day counts, a 30-day chart, a platform breakdown and a searchable, paginated signup table with CSV export. Times are UTC.
+`/admin` shows visitors, page views, signups and the visitor-to-signup conversion rate, plus total signups, today / 7-day / 30-day counts, a 30-day chart, a platform breakdown and a searchable, paginated signup table with CSV export. Times are UTC.
 
+- Visitor stats come from a first-party, cookie-free tracker (`/api/collect` into the `page_views` table). It stores no IP addresses, uses a daily-rotating hash, skips bots, Do Not Track and your own admin visits. Multi-day visitor totals are the sum of daily unique visitors. Run the `page_views` SQL in `supabase/schema.sql` once to enable it.
 - Sign in with `ADMIN_PASSWORD` (12+ characters). The session is a signed, httpOnly, same-site cookie valid for 7 days; changing the password signs everyone out.
 - Login is rate limited, `/admin` is `noindex` and disallowed in `robots.txt`.
 - For defense in depth, also put **Cloudflare Access** (Zero Trust, free up to 50 users) in front of `/admin*` and `/api/admin/*`.

@@ -14,6 +14,11 @@ export default function PrivacyPage() {
       <p>
         When you join the {APP_NAME} waitlist we store your email address, your main platform and the time you signed up.
       </p>
+      <h2>Site analytics</h2>
+      <p>
+        We count visits without cookies. For each page view we store the page, the referring site, the visitor&apos;s country and
+        a daily-changing anonymous hash. We never store IP addresses, and we skip visitors who send a Do Not Track signal.
+      </p>
       <h2>How we use it</h2>
       <p>
         To confirm your spot, tell you your position on the list and email you when your invite is ready. We do not sell your

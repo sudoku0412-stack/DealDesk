@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/admin-auth";
-import { computeStats, fetchSignups } from "@/lib/admin-data";
+import { computeStats, computeTraffic, fetchSignups, fetchViews } from "@/lib/admin-data";
 import { APP_NAME, PLATFORMS } from "@/lib/config";
 import { Logo } from "@/components/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -21,6 +21,14 @@ function href(params: Search) {
   if (params.page && params.page !== "1") sp.set("page", params.page);
   const qs = sp.toString();
   return qs ? `/admin?${qs}` : "/admin";
+}
+
+function countryName(code: string) {
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(code.toUpperCase()) ?? code;
+  } catch {
+    return code;
+  }
 }
 
 const fmt = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
@@ -42,8 +50,9 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const q = (sp.q ?? "").trim().slice(0, 100);
   const platform = PLATFORMS.find((p) => p === sp.platform) ?? "";
 
-  const { rows, error } = await fetchSignups();
+  const [{ rows, error }, { rows: views, error: viewsError }] = await Promise.all([fetchSignups(), fetchViews()]);
   const stats = computeStats(rows);
+  const traffic = computeTraffic(views, rows);
 
   const filtered = rows
     .filter((r) => (!platform || r.platform === platform) && (!q || r.email.includes(q.toLowerCase())))
@@ -53,7 +62,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const delta = stats.last7 - stats.prev7;
-  const maxDay = Math.max(1, ...stats.series.map((d) => d.count));
+  const maxDay = Math.max(1, ...traffic.series.map((d) => Math.max(d.visitors, d.signups)));
   const maxPlatform = Math.max(1, ...stats.byPlatform.map((p) => p.count));
 
   return (
@@ -85,6 +94,24 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </p>
         )}
 
+        {viewsError && (
+          <p role="alert" className="rounded-xl border border-line bg-surface-solid p-4 text-sm text-muted">
+            Visitor analytics is not set up yet ({viewsError}). Run the <code className="font-mono">page_views</code> SQL from{" "}
+            <code className="font-mono">supabase/schema.sql</code> in the Supabase SQL editor.
+          </p>
+        )}
+
+        <section aria-label="Traffic" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Stat label="Visitors (30 days)" value={traffic.visitors30} hint={`${traffic.visitorsToday} today · ${traffic.visitors7} in 7 days`} />
+          <Stat label="Page views (30 days)" value={traffic.views30} />
+          <Stat label="Signups (30 days)" value={traffic.signups30} />
+          <Stat
+            label="Conversion rate"
+            value={traffic.conversion === null ? "–" : `${traffic.conversion.toFixed(1)}%`}
+            hint={traffic.trackingSince ? `Signups ÷ visitors since ${traffic.trackingSince}` : "Starts once visits are recorded"}
+          />
+        </section>
+
         <section aria-label="Key numbers" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat label="Total signups" value={stats.total} />
           <Stat label="Today" value={stats.today} />
@@ -98,24 +125,32 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
         <section className="grid gap-4 lg:grid-cols-3">
           <div className="glass rounded-2xl p-5 lg:col-span-2">
-            <h2 className="font-display text-lg font-bold">Signups per day (last 30 days)</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-lg font-bold">Visitors and signups (last 30 days)</h2>
+              <p className="flex items-center gap-4 text-xs font-semibold text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-sm bg-fg/30" aria-hidden="true" /> Visitors
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2.5 rounded-sm bg-accent" aria-hidden="true" /> Signups
+                </span>
+              </p>
+            </div>
             <div
               role="img"
-              aria-label={`Bar chart of daily signups over the last 30 days. Peak day: ${Math.max(...stats.series.map((d) => d.count))}. Total in period: ${stats.last30}.`}
+              aria-label={`Bar chart of daily visitors and signups over the last 30 days. Visitors: ${traffic.visitors30}. Signups: ${traffic.signups30}.`}
               className="mt-4 flex h-40 items-end gap-1"
             >
-              {stats.series.map((d) => (
-                <div key={d.day} className="group relative flex-1" title={`${d.day}: ${d.count}`}>
-                  <div
-                    className={`w-full rounded-t ${d.count ? "bg-accent" : "bg-fg/10"}`}
-                    style={{ height: `${d.count ? Math.max(6, (d.count / maxDay) * 100) : 3}%`, minHeight: 3 }}
-                  />
+              {traffic.series.map((d) => (
+                <div key={d.day} className="flex h-full flex-1 items-end gap-px" title={`${d.day}: ${d.visitors} visitors, ${d.signups} signups`}>
+                  <div className="w-1/2 rounded-t bg-fg/30" style={{ height: `${d.visitors ? Math.max(4, (d.visitors / maxDay) * 100) : 2}%` }} />
+                  <div className={`w-1/2 rounded-t ${d.signups ? "bg-accent" : "bg-fg/10"}`} style={{ height: `${d.signups ? Math.max(4, (d.signups / maxDay) * 100) : 2}%` }} />
                 </div>
               ))}
             </div>
             <div className="mt-2 flex justify-between text-xs text-muted" aria-hidden="true">
-              <span>{stats.series[0].day}</span>
-              <span>{stats.series[29].day}</span>
+              <span>{traffic.series[0].day}</span>
+              <span>{traffic.series[29].day}</span>
             </div>
           </div>
 
@@ -138,6 +173,29 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               ))}
             </ul>
           </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2">
+          {[
+            { title: "Top sources (30 days)", rows: traffic.referrers, label: (k: string) => k },
+            { title: "Top countries (30 days)", rows: traffic.countries, label: countryName },
+          ].map((list) => (
+            <div key={list.title} className="glass rounded-2xl p-5">
+              <h2 className="font-display text-lg font-bold">{list.title}</h2>
+              {list.rows.length === 0 ? (
+                <p className="mt-3 text-sm text-muted">No data yet.</p>
+              ) : (
+                <ul className="mt-3 divide-y divide-line/60 text-sm">
+                  {list.rows.map(([k, n]) => (
+                    <li key={k} className="flex justify-between py-2">
+                      <span className="font-medium">{list.label(k)}</span>
+                      <span className="tabular-nums text-muted">{n} views</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
         </section>
 
         <section aria-labelledby="signups-title" className="glass rounded-2xl p-5">
