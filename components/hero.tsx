@@ -39,20 +39,23 @@ export function Hero() {
           </div>
         </Reveal>
 
-        <Reveal delay={0.3} y={40} className="relative mt-16">
-          <div className="pointer-events-none absolute left-0 top-12 z-20 hidden xl:block" aria-hidden="true">
-            <div className="glass animate-float rounded-2xl px-4 py-3 text-left text-sm">
-              <p className="font-display font-bold">⏰ Deliverable due tomorrow</p>
-              <p className="text-xs text-muted">Brewline · Twitch stream</p>
+        <Reveal delay={0.3} y={40} className="mt-16">
+          <div className="relative mx-auto max-w-[760px] pb-8">
+            <PipelineMockup />
+            {/* Straddle the bottom edge, over empty board space, so they never cover content. */}
+            <div className="pointer-events-none absolute -bottom-0 left-4 z-20 hidden md:block" aria-hidden="true">
+              <div className="glass animate-float rounded-2xl px-4 py-3 text-left text-sm">
+                <p className="font-display font-bold">⏰ Deliverable due tomorrow</p>
+                <p className="text-xs text-muted">Brewline · Twitch stream</p>
+              </div>
+            </div>
+            <div className="pointer-events-none absolute bottom-0 right-4 z-20 hidden md:block" aria-hidden="true">
+              <div className="glass animate-float rounded-2xl px-4 py-3 text-left text-sm [animation-delay:-3s]">
+                <p className="font-display font-bold text-[#c0270a] dark:text-[#ff8a7a]">⚠ Invoice 4 days overdue</p>
+                <p className="text-xs text-muted">Nova Skincare · $1,800</p>
+              </div>
             </div>
           </div>
-          <div className="pointer-events-none absolute right-0 bottom-20 z-20 hidden xl:block" aria-hidden="true">
-            <div className="glass animate-float rounded-2xl px-4 py-3 text-left text-sm [animation-delay:-3s]">
-              <p className="font-display font-bold text-[#c0270a] dark:text-[#ff8a7a]">⚠ Invoice 4 days overdue</p>
-              <p className="text-xs text-muted">Nova Skincare · $1,800</p>
-            </div>
-          </div>
-          <PipelineMockup />
         </Reveal>
       </div>
     </section>
