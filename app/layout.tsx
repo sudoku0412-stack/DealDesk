@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Instrument_Sans } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
+import Script from "next/script";
 import { Providers } from "@/components/providers";
 import { APP_NAME, DESCRIPTION, PARENT_BRAND, PARENT_URL, SITE_URL, TAGLINE } from "@/lib/config";
 import "./globals.css";
@@ -59,6 +59,8 @@ export const viewport: Viewport = {
   ],
 };
 
+const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
+
 /** Sets the theme class before first paint to avoid a flash. */
 const themeScript = `(function(){try{var t=localStorage.getItem("theme");var d=t?t==="dark":window.matchMedia("(prefers-color-scheme: dark)").matches;if(d)document.documentElement.classList.add("dark")}catch(e){}})()`;
 
@@ -76,7 +78,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
         <Providers>{children}</Providers>
-        <Analytics />
+        {plausibleDomain && (
+          <Script
+            defer
+            data-domain={plausibleDomain}
+            src="https://plausible.io/js/script.tagged-events.js"
+            strategy="afterInteractive"
+          />
+        )}
       </body>
     </html>
   );

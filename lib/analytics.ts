@@ -1,10 +1,14 @@
-import { track } from "@vercel/analytics";
+type PlausibleFn = (event: string, options?: { props?: Record<string, string | number | boolean> }) => void;
 
-/** Fire a custom analytics event. Never throws; analytics must not break the UI. */
+/**
+ * Fire a custom analytics event (Plausible). No-ops if the Plausible script is
+ * not loaded (see NEXT_PUBLIC_PLAUSIBLE_DOMAIN). Never throws.
+ */
 export function trackEvent(name: string, props?: Record<string, string | number | boolean>) {
   try {
-    track(name, props);
+    const plausible = (window as unknown as { plausible?: PlausibleFn }).plausible;
+    plausible?.(name, props ? { props } : undefined);
   } catch {
-    /* ignore */
+    /* analytics must never break the UI */
   }
 }

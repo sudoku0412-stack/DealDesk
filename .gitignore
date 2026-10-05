@@ -21,3 +21,10 @@ next-env.d.ts
 coverage/
 .idea/
 .vscode/
+
+# cloudflare / opennext
+.open-next/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example

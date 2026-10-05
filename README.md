@@ -1,6 +1,6 @@
 # DealDesk
 
-DealDesk keeps every sponsorship, deadline and payment in one place, built for creators, not sales teams. This repo is the marketing site and waitlist: a Next.js landing page with a working waitlist (Supabase) and confirmation emails (Resend).
+DealDesk keeps every sponsorship, deadline and payment in one place, built for creators, not sales teams. This repo is the marketing site and waitlist: a Next.js landing page with a working waitlist (Supabase) and confirmation emails (Resend), deployed on Cloudflare Workers.
 
 A Craftloop product. Production: https://dealdesk.craftloop.ca
 
@@ -10,7 +10,8 @@ A Craftloop product. Production: https://dealdesk.craftloop.ca
 - Framer Motion for animation (lazy-loaded, respects reduced motion)
 - Supabase (Postgres) for waitlist storage
 - Resend for confirmation emails
-- Vercel Analytics, with a `waitlist_signup` custom event on every successful submit
+- Cloudflare Workers via the OpenNext adapter (`@opennextjs/cloudflare`)
+- Optional Plausible analytics, with a `waitlist_signup` custom event on every successful submit
 
 ## Project structure
 
@@ -29,6 +30,7 @@ supabase/       schema.sql
 npm install
 cp .env.example .env.local   # then fill in the values
 npm run dev                  # http://localhost:3000
+npm run preview              # optional: run in the real Workers runtime (needs .dev.vars)
 ```
 
 Without Supabase credentials the page still renders; the form returns a friendly "temporarily unavailable" error.
@@ -41,6 +43,7 @@ Without Supabase credentials the page still renders; the form returns a friendly
 | `SUPABASE_URL` | server | Supabase project URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | server | Service role key. Never expose it to the browser or commit it |
 | `RESEND_API_KEY` | server | Resend API key |
+| `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | public | Optional. Your Plausible site domain; enables the `waitlist_signup` event |
 | `EMAIL_FROM` | server | Sender, e.g. `DealDesk <hello@craftloop.ca>` (domain must be verified in Resend) |
 
 Secrets live in `.env.local` (git-ignored). Only `.env.example` is committed.
@@ -78,21 +81,31 @@ Row Level Security is on with no policies, so the public anon key cannot read or
 
 Until the domain is verified, Resend only lets you send from `onboarding@resend.dev` to your own address. A failed email never blocks a signup.
 
-## Deploy to Vercel
+## Deploy to Cloudflare Workers
 
-1. Push this repo to GitHub and import it at https://vercel.com/new (framework: Next.js, no build overrides).
-2. Add the five environment variables above for **Production** (and Preview if you want).
-3. Deploy.
-4. Add the custom domain: **Project → Settings → Domains → Add** `dealdesk.craftloop.ca`.
-5. At your DNS provider for `craftloop.ca`, add:
+The domain's DNS is already on Cloudflare, so hosting, TLS and DNS all stay in one dashboard.
 
-   | Type | Name | Value |
-   | --- | --- | --- |
-   | `CNAME` | `dealdesk` | `cname.vercel-dns.com` |
+1. Push this repo to GitHub.
+2. In the Cloudflare dashboard open **Workers & Pages → Create → Import a repository** and pick `DealDesk`.
+3. Build settings:
+   - Build command: `npx opennextjs-cloudflare build`
+   - Deploy command: `npx opennextjs-cloudflare deploy`
+4. Under **Build → Variables and secrets** add the build variables (needed at build time):
+   - `NEXT_PUBLIC_SITE_URL` = `https://dealdesk.craftloop.ca`
+   - `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` (optional)
+5. Deploy. You get a `dealdesk.<account>.workers.dev` URL.
+6. In the Worker's **Settings → Variables and Secrets** add the runtime values:
+   - `SUPABASE_URL` (text)
+   - `SUPABASE_SERVICE_ROLE_KEY` (**secret**)
+   - `RESEND_API_KEY` (**secret**)
+   - `EMAIL_FROM` = `DealDesk <hello@craftloop.ca>` (text)
+7. Custom domain: Worker **Settings → Domains & Routes → Add → Custom domain**, enter `dealdesk.craftloop.ca`. Because `craftloop.ca` is on Cloudflare, the DNS record and certificate are created automatically. No manual CNAME is needed.
+8. Optional pageview analytics: **Analytics & Logs → Web Analytics → Add a site** for `dealdesk.craftloop.ca` (free).
+9. Optional hardening: add a **Security → WAF → Rate limiting rule** for path `/api/waitlist` (the in-app limiter is per Worker isolate only).
 
-   (Vercel shows the exact target for your project; use that if it differs.)
-6. Wait for Vercel to show the domain as valid; HTTPS is issued automatically.
-7. Enable **Analytics** in the Vercel project to receive page views and the `waitlist_signup` event.
+Manual deploy from your machine: `npx wrangler login`, then `npm run deploy`.
+
+Resend DNS records (section above) are added in the Cloudflare **DNS** tab as **DNS only** records.
 
 ## Waitlist API
 
@@ -100,7 +113,7 @@ Until the domain is verified, Resend only lets you send from `onboarding@resend.
 
 - Validates and normalizes the email (trimmed, lowercased).
 - `company` is a honeypot: if filled, the API returns a fake success and stores nothing.
-- Rate limit: 5 requests per IP per 10 minutes (in-memory, per serverless instance; swap `lib/rate-limit.ts` for Upstash Redis if you need strict global limits).
+- Rate limit: 5 requests per IP per 10 minutes (in-memory, per Worker isolate; add a Cloudflare WAF rate limiting rule for strict global limits).
 - Duplicate emails return `{ ok: true, duplicate: true, position }` instead of an error.
 - Success returns `{ ok: true, position, duplicate }`, which drives the "You're #N on the list" message.
 
@@ -109,7 +122,9 @@ Until the domain is verified, Resend only lets you send from `onboarding@resend.
 ```bash
 npm run dev        # development server
 npm run build      # production build
-npm run start      # serve the production build
+npm run start      # serve the Next.js production build
+npm run preview    # build and run in the Workers runtime
+npm run deploy     # build and deploy to Cloudflare
 npm run typecheck  # TypeScript check
 ```
 
