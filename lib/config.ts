@@ -2,7 +2,7 @@
 export const APP_NAME = "DealDesk";
 export const PARENT_BRAND = "Craftloop";
 export const PARENT_URL = "https://craftloop.ca";
-export const SUPPORT_EMAIL = "hello@craftloop.ca";
+export const SUPPORT_EMAIL = "support@craftloop.ca";
 
 export const TAGLINE = "The brand-deal CRM for small creators";
 export const DESCRIPTION =

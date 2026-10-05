@@ -44,7 +44,7 @@ Without Supabase credentials the page still renders; the form returns a friendly
 | `SUPABASE_SERVICE_ROLE_KEY` | server | Service role key. Never expose it to the browser or commit it |
 | `RESEND_API_KEY` | server | Resend API key |
 | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | public | Optional. Your Plausible site domain; enables the `waitlist_signup` event |
-| `EMAIL_FROM` | server | Sender, e.g. `DealDesk <hello@craftloop.ca>` (domain must be verified in Resend) |
+| `EMAIL_FROM` | server | Sender, e.g. `DealDesk <support@craftloop.ca>` (domain must be verified in Resend) |
 
 Secrets live in `.env.local` (git-ignored). Only `.env.example` is committed.
 
@@ -80,7 +80,7 @@ Row Level Security is on with no policies, so the public anon key cannot read or
 1. Create an API key at https://resend.com/api-keys.
 2. Go to **Domains → Add Domain** and add `craftloop.ca`.
 3. Add the DNS records Resend shows (SPF, DKIM, and optionally DMARC) at your DNS provider, then click **Verify**.
-4. Set `EMAIL_FROM="DealDesk <hello@craftloop.ca>"`.
+4. Set `EMAIL_FROM="DealDesk <support@craftloop.ca>"`.
 
 Until the domain is verified, Resend only lets you send from `onboarding@resend.dev` to your own address. A failed email never blocks a signup.
 
@@ -101,7 +101,7 @@ The domain's DNS is already on Cloudflare, so hosting, TLS and DNS all stay in o
    - `SUPABASE_URL` (text)
    - `SUPABASE_SERVICE_ROLE_KEY` (**secret**)
    - `RESEND_API_KEY` (**secret**)
-   - `EMAIL_FROM` = `DealDesk <hello@craftloop.ca>` (text)
+   - `EMAIL_FROM` = `DealDesk <support@craftloop.ca>` (text)
 7. Custom domain: Worker **Settings → Domains & Routes → Add → Custom domain**, enter `dealdesk.craftloop.ca`. Because `craftloop.ca` is on Cloudflare, the DNS record and certificate are created automatically. No manual CNAME is needed.
 8. Optional pageview analytics: **Analytics & Logs → Web Analytics → Add a site** for `dealdesk.craftloop.ca` (free).
 9. Optional hardening: add a **Security → WAF → Rate limiting rule** for path `/api/waitlist` (the in-app limiter is per Worker isolate only).
