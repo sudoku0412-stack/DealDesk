@@ -66,6 +66,9 @@ create table if not exists public.waitlist (
 create index if not exists waitlist_created_at_idx on public.waitlist (created_at);
 
 alter table public.waitlist enable row level security;
+
+grant usage on schema public to service_role;
+grant select, insert on table public.waitlist to service_role;
 ```
 
 3. Copy **Project URL** and the **service_role** key from **Project Settings → API** into your env vars.
