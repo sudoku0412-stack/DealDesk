@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <div className="min-w-0 pb-24 md:pb-0">
+      <div className="min-w-0 pb-28 md:pb-0">
         <header className="flex items-center justify-between border-b border-line px-4 py-3 md:hidden">
           <Link href="/app" aria-label="DealDesk app home">
             <Logo />

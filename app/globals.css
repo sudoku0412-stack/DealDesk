@@ -64,6 +64,8 @@ html {
 }
 
 body {
+  /* Never let stray overflow make phone browsers zoom the page out. */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
@@ -87,6 +89,20 @@ h3 {
   outline: 3px solid var(--accent);
   outline-offset: 3px;
   border-radius: 0.5rem;
+}
+
+/* iOS Safari gives date inputs an intrinsic width that overflows their container. */
+input[type="date"] {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.5em;
 }
 
 /* Dotted "desk mat" texture */

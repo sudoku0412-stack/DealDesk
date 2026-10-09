@@ -16,7 +16,7 @@ export function AppNav({ orientation }: { orientation: "side" | "bottom" }) {
   const active = (href: string) => (href === "/app" ? pathname === "/app" || pathname.startsWith("/app/deals") : pathname.startsWith(href));
 
   return (
-    <ul className={orientation === "side" ? "mt-6 space-y-1" : "grid grid-cols-5"}>
+    <ul className={orientation === "side" ? "mt-6 space-y-1" : "grid grid-cols-5 gap-1 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1"}>
       {ITEMS.map((i) => (
         <li key={i.href}>
           <Link

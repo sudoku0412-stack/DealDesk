@@ -94,7 +94,7 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
         </p>
       )}
 
-      <div className="mt-6 flex snap-x gap-3 overflow-x-auto pb-4 md:grid md:grid-cols-5 md:overflow-visible">
+      <div className="relative mt-6 flex snap-x gap-3 overflow-x-auto pb-4 md:grid md:grid-cols-5 md:overflow-visible">
         {STAGES.map((s) => {
           const col = deals.filter((d) => d.stage === s.id);
           return (

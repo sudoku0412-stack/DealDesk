@@ -12,7 +12,7 @@ export function Pill({ tone = "neutral", children }: { tone?: Tone; children: Re
   return <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${tones[tone]}`}>{children}</span>;
 }
 
-export const inputClass = "h-11 w-full rounded-xl border border-line bg-surface-solid px-3 text-base";
+export const inputClass = "h-11 w-full min-w-0 max-w-full rounded-xl border border-line bg-surface-solid px-3 text-base";
 export const btnPrimary =
   "inline-flex h-11 items-center justify-center rounded-xl bg-accent px-5 font-display font-bold text-accent-ink transition hover:brightness-105 active:scale-[0.98] disabled:opacity-60";
 export const btnGhost =

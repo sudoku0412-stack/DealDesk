@@ -41,7 +41,7 @@ export function PaymentList({ initial, currency, today }: { initial: PaymentRow[
 
       {error && <p role="alert" className="text-sm font-semibold text-[#c0270a] dark:text-[#ff9a7a]">{error}</p>}
 
-      <div className="glass overflow-x-auto rounded-2xl">
+      <div className="glass relative overflow-x-auto rounded-2xl">
         <table className="w-full min-w-[560px] text-left text-sm">
           <caption className="sr-only">All payments</caption>
           <thead className="text-muted">

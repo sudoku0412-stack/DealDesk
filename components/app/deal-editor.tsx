@@ -19,9 +19,11 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
   const [payments, setPayments] = useState(initialPayments);
   const [status, setStatus] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
 
+  /** Shows an error message only when `error` is set. Returns true if there was an error. */
   const fail = (error: { message: string } | null, fallback: string) => {
-    setStatus({ tone: "bad", text: error?.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : fallback });
-    return !!error;
+    if (!error) return false;
+    setStatus({ tone: "bad", text: error.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : fallback });
+    return true;
   };
 
   async function saveDeal(e: React.FormEvent<HTMLFormElement>) {
@@ -176,9 +178,15 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
               })}
               {deliverables.length === 0 && <li className="py-3 text-sm text-muted">No deliverables yet.</li>}
             </ul>
-            <form onSubmit={addDeliverable} className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input name="title" required maxLength={160} placeholder="e.g. 60s Instagram Reel" aria-label="Deliverable" className={inputClass} />
-              <input name="due" type="date" aria-label="Due date" className={`${inputClass} sm:w-44`} />
+            <form onSubmit={addDeliverable} className="mt-3 grid gap-2 sm:grid-cols-[1fr_11rem_auto] sm:items-end">
+              <label className="text-xs font-semibold text-muted">
+                Deliverable
+                <input name="title" required maxLength={160} placeholder="e.g. 60s Instagram Reel" className={`${inputClass} mt-1 text-fg`} />
+              </label>
+              <label className="text-xs font-semibold text-muted">
+                Due date (optional)
+                <input name="due" type="date" className={`${inputClass} mt-1 text-fg`} />
+              </label>
               <button className={btnGhost}>Add</button>
             </form>
           </section>
@@ -199,12 +207,12 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
               })}
               {payments.length === 0 && <li className="py-3 text-sm text-muted">No payments tracked yet.</li>}
             </ul>
-            <form onSubmit={addPayment} className="mt-3 grid grid-cols-2 gap-2">
+            <form onSubmit={addPayment} className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input name="label" maxLength={120} placeholder="Label (e.g. 50% upfront)" aria-label="Payment label" className={inputClass} />
               <input name="amount" required inputMode="decimal" placeholder={`Amount (${currency})`} aria-label="Payment amount" className={inputClass} />
               <label className="text-xs font-semibold text-muted">Invoiced on<input name="invoiced" type="date" className={`${inputClass} mt-1 text-fg`} /></label>
               <label className="text-xs font-semibold text-muted">Due on<input name="due" type="date" className={`${inputClass} mt-1 text-fg`} /></label>
-              <button className={`${btnGhost} col-span-2`}>Add payment</button>
+              <button className={`${btnGhost} sm:col-span-2`}>Add payment</button>
             </form>
           </section>
         </div>

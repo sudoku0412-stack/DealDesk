@@ -236,7 +236,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <button className="h-11 rounded-xl bg-accent px-5 font-bold text-accent-ink">Filter</button>
           </form>
 
-          <div className="mt-4 overflow-x-auto">
+          <div className="relative mt-4 overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">
               <caption className="sr-only">Waitlist signups, newest first</caption>
               <thead className="text-muted">
