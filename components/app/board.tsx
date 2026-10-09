@@ -20,6 +20,7 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
   const [movedId, setMovedId] = useState<string | null>(null);
   const [shakeId, setShakeId] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -43,6 +44,14 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
     return m;
   }, [deals, deliverables, payments, today]);
 
+  /** On phones the columns scroll sideways; bring a column into view so a moved card stays visible. */
+  function focusStage(stage: Stage) {
+    const box = scroller.current;
+    const col = box?.querySelector<HTMLElement>(`section[data-stage="${stage}"]`);
+    if (!box || !col || window.matchMedia("(min-width: 768px)").matches) return;
+    box.scrollTo({ left: Math.max(0, col.offsetLeft - 8), behavior: "smooth" });
+  }
+
   function block(deal: Deal, text: string) {
     setNotice({ text, dealId: deal.id, brand: deal.brand });
     setShakeId(deal.id);
@@ -61,11 +70,13 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
     setMovedId(id);
     setTimeout(() => setMovedId((m) => (m === id ? null : m)), 750);
     setNotice(null);
+    setTimeout(() => focusStage(stage), 60);
 
     const { error } = await supabaseBrowser().from("deals").update({ stage }).eq("id", id);
     if (error) {
       setDeals(prev);
       setMovedId(null);
+      focusStage(deal.stage);
       if (error.message.includes("deliverables_incomplete")) block(deal, DELIVERED_BLOCKED_MESSAGE);
       else setNotice({ text: error.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : "Could not move that deal. Try again." });
     }
@@ -128,7 +139,21 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
         </div>
       )}
 
-      <div className="relative mt-6 flex snap-x gap-3 overflow-x-auto pb-4 md:grid md:grid-cols-5 md:overflow-visible">
+      <nav aria-label="Jump to stage" className="mt-5 flex gap-2 overflow-x-auto pb-1 md:hidden">
+        {STAGES.map((s) => (
+          <button
+            key={s.id}
+            data-stage={s.id}
+            onClick={() => focusStage(s.id)}
+            className="stage-pill flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold"
+          >
+            {s.label}
+            <span className="rounded-full bg-fg/10 px-1.5 tabular-nums">{deals.filter((d) => d.stage === s.id).length}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div ref={scroller} className="relative mt-3 flex snap-x gap-3 overflow-x-auto pb-4 md:mt-6 md:grid md:grid-cols-5 md:overflow-visible">
         {STAGES.map((s) => {
           const col = deals.filter((d) => d.stage === s.id);
           const refused = !!dragged && overStage === s.id && dragged.stage !== s.id && !!blockerFor(dragged.id, s.id);

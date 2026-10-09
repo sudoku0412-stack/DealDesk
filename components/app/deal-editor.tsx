@@ -9,6 +9,7 @@ import { DELIVERED_BLOCKED_MESSAGE, stageBlocker } from "@/lib/app/rules";
 import { FREE_LIMIT_MESSAGE, STAGES, type Deal, type Deliverable, type Payment, type Stage } from "@/lib/app/types";
 import { PLATFORMS } from "@/lib/config";
 import { Pill, btnGhost, btnPrimary, inputClass } from "@/components/app/pill";
+import { DateField } from "@/components/app/date-field";
 
 type Props = { deal: Deal; initialDeliverables: Deliverable[]; initialPayments: Payment[]; currency: string; today: string };
 
@@ -200,7 +201,7 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
               </label>
               <label className="text-xs font-semibold text-muted">
                 Due date (optional)
-                <input name="due" type="date" className={`${inputClass} mt-1 text-fg`} />
+                <DateField name="due" label="Due date" />
               </label>
               <button className={btnGhost}>Add</button>
             </form>
@@ -225,8 +226,8 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
             <form onSubmit={addPayment} className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <input name="label" maxLength={120} placeholder="Label (e.g. 50% upfront)" aria-label="Payment label" className={inputClass} />
               <input name="amount" required inputMode="decimal" placeholder={`Amount (${currency})`} aria-label="Payment amount" className={inputClass} />
-              <label className="text-xs font-semibold text-muted">Invoiced on<input name="invoiced" type="date" className={`${inputClass} mt-1 text-fg`} /></label>
-              <label className="text-xs font-semibold text-muted">Due on<input name="due" type="date" className={`${inputClass} mt-1 text-fg`} /></label>
+              <label className="text-xs font-semibold text-muted">Invoiced on<DateField name="invoiced" label="Invoiced on" /></label>
+              <label className="text-xs font-semibold text-muted">Due on<DateField name="due" label="Due on" /></label>
               <button className={`${btnGhost} sm:col-span-2`}>Add payment</button>
             </form>
           </section>
