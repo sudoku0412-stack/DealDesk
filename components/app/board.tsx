@@ -21,6 +21,8 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
   const [shakeId, setShakeId] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  /** Time of the last drag. A click right after a drag is the browser finishing the gesture, not a tap to open the deal. */
+  const lastDrag = useRef(0);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -50,6 +52,50 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
     const col = box?.querySelector<HTMLElement>(`section[data-stage="${stage}"]`);
     if (!box || !col || window.matchMedia("(min-width: 768px)").matches) return;
     box.scrollTo({ left: Math.max(0, col.offsetLeft - 8), behavior: "smooth" });
+  }
+
+  /** Touch dragging: HTML5 drag-and-drop does not fire for fingers, so the grip handle uses pointer events. */
+  const touch = useRef<{ id: string; pointerId: number } | null>(null);
+
+  function stageAt(x: number, y: number): Stage | null {
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("section[data-stage]");
+    return (el?.dataset.stage as Stage | undefined) ?? null;
+  }
+
+  function onGripDown(e: React.PointerEvent<HTMLButtonElement>, id: string) {
+    if (e.pointerType === "mouse") return; // desktop uses native drag-and-drop
+    e.preventDefault();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* capture is best-effort */
+    }
+    touch.current = { id, pointerId: e.pointerId };
+    lastDrag.current = Date.now();
+    setDragId(id);
+    setOverStage(deals.find((d) => d.id === id)?.stage ?? null);
+  }
+
+  function onGripMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!touch.current) return;
+    setOverStage(stageAt(e.clientX, e.clientY));
+    const box = scroller.current;
+    if (box) {
+      const edge = 56;
+      if (e.clientX < edge) box.scrollLeft -= 14;
+      else if (e.clientX > window.innerWidth - edge) box.scrollLeft += 14;
+    }
+  }
+
+  function endGrip(e: React.PointerEvent<HTMLButtonElement>, commit: boolean) {
+    const t = touch.current;
+    if (!t) return;
+    touch.current = null;
+    lastDrag.current = Date.now();
+    const target = commit ? stageAt(e.clientX, e.clientY) : null;
+    setDragId(null);
+    setOverStage(null);
+    if (target) moveDeal(t.id, target);
   }
 
   function block(deal: Deal, text: string) {
@@ -139,6 +185,12 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
         </div>
       )}
 
+      {dragged && overStage && touch.current && (
+        <div role="status" className="pointer-events-none fixed inset-x-4 top-4 z-50 rounded-xl bg-fg px-4 py-2.5 text-center text-sm font-bold text-bg shadow-lg md:hidden">
+          {overStage === dragged.stage ? `${dragged.brand}: drag to another stage` : `Release to move ${dragged.brand} to ${STAGES.find((x) => x.id === overStage)?.label}`}
+        </div>
+      )}
+
       <nav aria-label="Jump to stage" className="mt-5 flex gap-2 overflow-x-auto pb-1 md:hidden">
         {STAGES.map((s) => (
           <button
@@ -190,17 +242,43 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
                       key={d.id}
                       data-stage={d.stage}
                       draggable
-                      onDragStart={() => setDragId(d.id)}
+                      onDragStart={() => {
+                        lastDrag.current = Date.now();
+                        setDragId(d.id);
+                      }}
                       onDragEnd={() => {
+                        lastDrag.current = Date.now();
                         setDragId(null);
                         setOverStage(null);
                       }}
-                      className={`stage-card cursor-grab rounded-xl p-3 shadow-sm active:cursor-grabbing ${dragId === d.id ? "opacity-50" : ""} ${
+                      onClickCapture={(e) => {
+                        if (Date.now() - lastDrag.current < 700) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }
+                      }}
+                      className={`stage-card relative cursor-grab select-none rounded-xl p-3 shadow-sm active:cursor-grabbing ${dragId === d.id ? "opacity-50" : ""} ${
                         movedId === d.id ? "animate-pop" : ""
                       } ${shakeId === d.id ? "animate-shake" : ""}`}
                     >
-                      <Link href={`/app/deals/${d.id}`} draggable={false} className="block">
-                        <div className="flex items-start justify-between gap-2">
+                      <button
+                        type="button"
+                        aria-label={`Drag ${d.brand} to another stage`}
+                        onPointerDown={(e) => onGripDown(e, d.id)}
+                        onPointerMove={onGripMove}
+                        onPointerUp={(e) => endGrip(e, true)}
+                        onPointerCancel={(e) => endGrip(e, false)}
+                        onContextMenu={(e) => e.preventDefault()}
+                        className="absolute right-1 top-1 grid size-9 touch-none place-items-center rounded-lg text-muted active:bg-fg/10 md:hidden"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" />
+                          <circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" />
+                          <circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+                        </svg>
+                      </button>
+                      <Link href={`/app/deals/${d.id}`} draggable={false} className="block [-webkit-touch-callout:none]">
+                        <div className="flex items-start justify-between gap-2 pr-7 md:pr-0">
                           <p className="font-display text-sm font-bold leading-tight">{d.brand}</p>
                           <p className="text-xs font-semibold tabular-nums">{formatMoney(d.amount_cents, currency)}</p>
                         </div>
