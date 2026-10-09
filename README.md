@@ -125,6 +125,8 @@ Setup, in order:
 5. **Access control.** `SIGNUP_MODE=waitlist` (default) lets only people on the waitlist (and existing users) sign in; `SIGNUP_MODE=open` lets anyone.
 6. **Reminders.** `wrangler.jsonc` schedules a daily cron (`0 14 * * *`, UTC) that calls `/api/cron/reminders`. One digest email per user: deliverables due within 2 days (once), overdue deliverables (once), overdue payments (at most every 7 days). Users can turn them off in Settings.
 
+Each pipeline stage has its own color, and a card's color animates when it moves. A deal can only move to **Delivered** once it has deliverables and every one is marked done. The UI explains why when a move is refused, and the `enforce_stage_rules` trigger in `app-schema.sql` enforces it in the database. After pulling this change, re-run `supabase/app-schema.sql` (it is safe to re-run).
+
 Dates in the app use UTC.
 
 ## Admin dashboard

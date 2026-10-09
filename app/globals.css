@@ -39,6 +39,58 @@
   color-scheme: dark;
 }
 
+/* Pipeline stage colors */
+:root {
+  --st-pitched: #8b92a5;
+  --st-negotiating: #e0a100;
+  --st-signed: #ff5a1f;
+  --st-delivered: #7c5cff;
+  --st-paid: #12a46f;
+}
+.dark {
+  --st-pitched: #a3a9bb;
+  --st-negotiating: #ffc83d;
+  --st-signed: #ff6b35;
+  --st-delivered: #9b82ff;
+  --st-paid: #2ed19a;
+}
+[data-stage="pitched"] { --c: var(--st-pitched); }
+[data-stage="negotiating"] { --c: var(--st-negotiating); }
+[data-stage="signed"] { --c: var(--st-signed); }
+[data-stage="delivered"] { --c: var(--st-delivered); }
+[data-stage="paid"] { --c: var(--st-paid); }
+
+.stage-col {
+  background: color-mix(in srgb, var(--c) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 28%, var(--line));
+  transition: background-color 0.4s, border-color 0.4s;
+}
+.stage-card {
+  background: color-mix(in srgb, var(--c) 13%, var(--surface-solid));
+  border: 1px solid color-mix(in srgb, var(--c) 40%, var(--line));
+  border-left: 5px solid var(--c);
+  transition: background-color 0.6s ease, border-color 0.6s ease, box-shadow 0.3s;
+}
+.stage-pill {
+  background: color-mix(in srgb, var(--c) 22%, transparent);
+  color: var(--fg);
+  border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+}
+
+@keyframes pop {
+  0% { transform: scale(0.94); box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 55%, transparent); }
+  45% { transform: scale(1.04); box-shadow: 0 0 0 8px color-mix(in srgb, var(--c) 0%, transparent); }
+  100% { transform: scale(1); }
+}
+.animate-pop { animation: pop 0.7s ease-out; }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+.animate-shake { animation: shake 0.45s ease-in-out; }
+
 @theme inline {
   --color-bg: var(--bg);
   --color-bg-2: var(--bg-2);
@@ -176,7 +228,9 @@ input[type="date"]::-webkit-date-and-time-value {
     scroll-behavior: auto;
   }
   .animate-float,
-  .animate-pulse-ring {
+  .animate-pulse-ring,
+  .animate-pop,
+  .animate-shake {
     animation: none;
   }
 }

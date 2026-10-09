@@ -4,17 +4,21 @@ import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { formatMoney, parseMoney, relativeDue } from "@/lib/app/format";
+import { DELIVERED_BLOCKED_MESSAGE, stageBlocker } from "@/lib/app/rules";
 import { FREE_LIMIT_MESSAGE, STAGES, type Deal, type Deliverable, type Payment, type Stage } from "@/lib/app/types";
 import { PLATFORMS } from "@/lib/config";
 import { Pill, btnGhost, btnPrimary, inputClass } from "@/components/app/pill";
 
 type Props = { initialDeals: Deal[]; deliverables: Deliverable[]; payments: Payment[]; currency: string; plan: "free" | "pro"; today: string };
+type Notice = { text: string; dealId?: string; brand?: string };
 
 export function Board({ initialDeals, deliverables, payments, currency, plan, today }: Props) {
   const [deals, setDeals] = useState(initialDeals);
-  const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
+  const [movedId, setMovedId] = useState<string | null>(null);
+  const [shakeId, setShakeId] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -22,31 +26,55 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
   const active = deals.filter((d) => d.stage !== "paid").length;
   const atLimit = plan === "free" && active >= 3;
 
+  const forDeal = (id: string) => deliverables.filter((x) => x.deal_id === id);
+  const blockerFor = (id: string, target: Stage) => stageBlocker(target, forDeal(id));
+
   const info = useMemo(() => {
-    const m = new Map<string, { nextDue: string | null; overdue: boolean }>();
+    const m = new Map<string, { nextDue: string | null; overdue: boolean; ready: boolean }>();
     for (const d of deals) {
-      const dates = deliverables.filter((x) => x.deal_id === d.id && x.due_date).map((x) => x.due_date!).sort();
-      const lateInvoice = payments.some((p) => p.deal_id === d.id && p.due_on && p.due_on < today);
-      m.set(d.id, { nextDue: dates[0] ?? null, overdue: lateInvoice });
+      const all = deliverables.filter((x) => x.deal_id === d.id);
+      const dates = all.filter((x) => !x.done && x.due_date).map((x) => x.due_date!).sort();
+      m.set(d.id, {
+        nextDue: dates[0] ?? null,
+        overdue: payments.some((p) => p.deal_id === d.id && p.due_on && p.due_on < today),
+        ready: all.length > 0 && all.every((x) => x.done),
+      });
     }
     return m;
   }, [deals, deliverables, payments, today]);
 
+  function block(deal: Deal, text: string) {
+    setNotice({ text, dealId: deal.id, brand: deal.brand });
+    setShakeId(deal.id);
+    setTimeout(() => setShakeId(null), 500);
+  }
+
   async function moveDeal(id: string, stage: Stage) {
     const prev = deals;
-    if (prev.find((d) => d.id === id)?.stage === stage) return;
+    const deal = prev.find((d) => d.id === id);
+    if (!deal || deal.stage === stage) return;
+
+    const reason = blockerFor(id, stage);
+    if (reason) return block(deal, reason);
+
     setDeals(prev.map((d) => (d.id === id ? { ...d, stage } : d)));
-    setMessage(null);
+    setMovedId(id);
+    setTimeout(() => setMovedId((m) => (m === id ? null : m)), 750);
+    setNotice(null);
+
     const { error } = await supabaseBrowser().from("deals").update({ stage }).eq("id", id);
     if (error) {
       setDeals(prev);
-      setMessage(error.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : "Could not move that deal. Try again.");
+      setMovedId(null);
+      if (error.message.includes("deliverables_incomplete")) block(deal, DELIVERED_BLOCKED_MESSAGE);
+      else setNotice({ text: error.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : "Could not move that deal. Try again." });
     }
   }
 
   async function createDeal(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const f = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const f = new FormData(form);
     const amount = parseMoney(String(f.get("amount") || "0"));
     if (amount === null) return setFormError("Enter a valid amount.");
     setSaving(true);
@@ -66,10 +94,11 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
     if (error || !data) return setFormError(error?.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : "Could not save the deal. Try again.");
     setDeals((d) => [data as Deal, ...d]);
     dialog.current?.close();
-    (e.target as HTMLFormElement).reset();
+    form.reset();
   }
 
   const total = deals.filter((d) => d.stage !== "paid").reduce((a, d) => a + d.amount_cents, 0);
+  const dragged = dragId ? deals.find((d) => d.id === dragId) : null;
 
   return (
     <div>
@@ -88,18 +117,25 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
         </button>
       </div>
 
-      {(message || atLimit) && (
-        <p role="alert" className="mt-4 rounded-xl border border-line bg-surface p-3 text-sm">
-          {message ?? FREE_LIMIT_MESSAGE}
-        </p>
+      {(notice || atLimit) && (
+        <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
+          <p className="min-w-0 flex-1">{notice?.text ?? FREE_LIMIT_MESSAGE}</p>
+          {notice?.dealId && (
+            <Link href={`/app/deals/${notice.dealId}`} className="shrink-0 rounded-lg bg-accent px-3 py-1.5 font-bold text-accent-ink">
+              Open {notice.brand}
+            </Link>
+          )}
+        </div>
       )}
 
       <div className="relative mt-6 flex snap-x gap-3 overflow-x-auto pb-4 md:grid md:grid-cols-5 md:overflow-visible">
         {STAGES.map((s) => {
           const col = deals.filter((d) => d.stage === s.id);
+          const refused = !!dragged && overStage === s.id && dragged.stage !== s.id && !!blockerFor(dragged.id, s.id);
           return (
             <section
               key={s.id}
+              data-stage={s.id}
               aria-label={`${s.label}, ${col.length} deals`}
               onDragOver={(e) => {
                 e.preventDefault();
@@ -111,12 +147,12 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
                 setDragId(null);
                 setOverStage(null);
               }}
-              className={`min-h-[320px] w-[78vw] shrink-0 snap-start rounded-2xl border p-2 transition sm:w-64 md:w-auto ${
-                overStage === s.id ? "border-accent bg-accent/10" : "border-line bg-fg/[0.03]"
+              className={`stage-col min-h-[320px] w-[78vw] shrink-0 snap-start rounded-2xl p-2 sm:w-64 md:w-auto ${
+                refused ? "!border-[#ff4d3a] !bg-[#ff4d3a]/10" : overStage === s.id && dragId ? "ring-2 ring-[var(--c)]" : ""
               }`}
             >
               <h2 className="flex items-center gap-2 px-2 py-2 font-display text-sm font-bold">
-                <span className={`size-2 rounded-full ${s.dot}`} aria-hidden="true" />
+                <span className="size-2.5 rounded-full bg-[var(--c)]" aria-hidden="true" />
                 {s.label}
                 <span className="ml-auto text-xs font-semibold text-muted">{col.length}</span>
               </h2>
@@ -127,13 +163,16 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
                   return (
                     <li
                       key={d.id}
+                      data-stage={d.stage}
                       draggable
                       onDragStart={() => setDragId(d.id)}
                       onDragEnd={() => {
                         setDragId(null);
                         setOverStage(null);
                       }}
-                      className={`cursor-grab rounded-xl border border-line bg-surface-solid p-3 shadow-sm active:cursor-grabbing ${dragId === d.id ? "opacity-50" : ""}`}
+                      className={`stage-card cursor-grab rounded-xl p-3 shadow-sm active:cursor-grabbing ${dragId === d.id ? "opacity-50" : ""} ${
+                        movedId === d.id ? "animate-pop" : ""
+                      } ${shakeId === d.id ? "animate-shake" : ""}`}
                     >
                       <Link href={`/app/deals/${d.id}`} draggable={false} className="block">
                         <div className="flex items-start justify-between gap-2">
@@ -142,6 +181,7 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
                         </div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {d.platform && <Pill>{d.platform}</Pill>}
+                          {d.stage === "signed" && i?.ready && <Pill tone="ok">Ready to deliver</Pill>}
                           {due && <Pill tone={due.tone}>{due.label}</Pill>}
                           {i?.overdue && <Pill tone="bad">Payment overdue</Pill>}
                         </div>

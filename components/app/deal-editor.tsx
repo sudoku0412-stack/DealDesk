@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { formatMoney, parseMoney, relativeDue } from "@/lib/app/format";
+import { DELIVERED_BLOCKED_MESSAGE, stageBlocker } from "@/lib/app/rules";
 import { FREE_LIMIT_MESSAGE, STAGES, type Deal, type Deliverable, type Payment, type Stage } from "@/lib/app/types";
 import { PLATFORMS } from "@/lib/config";
 import { Pill, btnGhost, btnPrimary, inputClass } from "@/components/app/pill";
@@ -22,7 +23,12 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
   /** Shows an error message only when `error` is set. Returns true if there was an error. */
   const fail = (error: { message: string } | null, fallback: string) => {
     if (!error) return false;
-    setStatus({ tone: "bad", text: error.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : fallback });
+    const text = error.message.includes("free_limit")
+      ? FREE_LIMIT_MESSAGE
+      : error.message.includes("deliverables_incomplete")
+        ? DELIVERED_BLOCKED_MESSAGE
+        : fallback;
+    setStatus({ tone: "bad", text });
     return true;
   };
 
@@ -40,6 +46,10 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
       contact_email: String(f.get("contact_email") || "").trim() || null,
       notes: String(f.get("notes") || "").trim() || null,
     };
+    if (patch.stage !== deal.stage) {
+      const reason = stageBlocker(patch.stage, deliverables);
+      if (reason) return setStatus({ tone: "bad", text: reason });
+    }
     const { error } = await db.from("deals").update(patch).eq("id", deal.id);
     if (fail(error, "Could not save. Try again.")) return;
     setDeal({ ...deal, ...patch });
@@ -123,7 +133,12 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
         <Link href="/app" className="text-sm font-semibold text-muted hover:text-fg">
           ← Pipeline
         </Link>
-        <h1 className="mt-2 text-3xl font-extrabold">{deal.brand}</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-extrabold">{deal.brand}</h1>
+          <span data-stage={deal.stage} className="stage-pill rounded-full px-3 py-1 text-sm font-bold">
+            {STAGES.find((s) => s.id === deal.stage)?.label}
+          </span>
+        </div>
         <p className="text-muted">
           {formatMoney(deal.amount_cents, currency)} · {formatMoney(paidTotal, currency)} of {formatMoney(invoicedTotal, currency)} invoiced has been paid
         </p>

@@ -10,7 +10,7 @@ export default async function PipelinePage() {
   const supabase = await createClient();
   const [deals, deliverables, payments, profile] = await Promise.all([
     supabase.from("deals").select("*").eq("archived", false).order("created_at", { ascending: false }).returns<Deal[]>(),
-    supabase.from("deliverables").select("id,deal_id,title,due_date,done").eq("done", false).returns<Deliverable[]>(),
+    supabase.from("deliverables").select("id,deal_id,title,due_date,done").returns<Deliverable[]>(),
     supabase.from("payments").select("*").is("paid_on", null).returns<Payment[]>(),
     supabase.from("profiles").select("currency,plan").single<Pick<Profile, "currency" | "plan">>(),
   ]);

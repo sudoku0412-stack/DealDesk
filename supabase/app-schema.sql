@@ -116,6 +116,23 @@ drop trigger if exists deals_free_limit on public.deals;
 create trigger deals_free_limit before insert or update of stage, archived on public.deals
   for each row execute function public.enforce_free_limit();
 
+-- Stage rule: a deal can only move to Delivered once it has deliverables and every one is done.
+create or replace function public.enforce_stage_rules() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare total integer; open_count integer;
+begin
+  if new.stage = 'delivered' and (tg_op = 'INSERT' or old.stage is distinct from 'delivered') then
+    select count(*), count(*) filter (where not done) into total, open_count
+      from public.deliverables where deal_id = new.id;
+    if total = 0 or open_count > 0 then raise exception 'deliverables_incomplete'; end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists deals_stage_rules on public.deals;
+create trigger deals_stage_rules before insert or update of stage on public.deals
+  for each row execute function public.enforce_stage_rules();
+
 -- ───────────── row level security ─────────────
 alter table public.profiles enable row level security;
 alter table public.deals enable row level security;
