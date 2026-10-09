@@ -58,6 +58,9 @@ export function Nav() {
         </ul>
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          <a href="/login" className="hidden h-10 items-center rounded-full px-4 text-sm font-semibold text-muted transition hover:text-fg sm:inline-flex">
+            Sign in
+          </a>
           <a
             href="#waitlist"
             className="inline-flex h-10 items-center rounded-full bg-fg px-5 text-sm font-bold text-bg transition hover:-translate-y-0.5 hover:opacity-90 active:scale-95"

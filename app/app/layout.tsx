@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, SUPABASE_ANON_KEY, SUPABASE_PUBLIC_URL } from "@/lib/supabase/server";
+import { SupabaseConfig } from "@/components/app/supabase-config";
 import { Logo } from "@/components/nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppNav } from "@/components/app/app-nav";
@@ -47,7 +48,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <ThemeToggle />
         </header>
         <main id="main" className="mx-auto max-w-7xl p-4 sm:p-6">
-          {children}
+          <SupabaseConfig url={SUPABASE_PUBLIC_URL!} anonKey={SUPABASE_ANON_KEY!}>
+            {children}
+          </SupabaseConfig>
         </main>
       </div>
 

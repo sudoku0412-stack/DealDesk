@@ -112,6 +112,21 @@ Manual deploy from your machine: `npx wrangler login`, then `npm run deploy`.
 
 Resend DNS records (section above) are added in the Cloudflare **DNS** tab as **DNS only** records.
 
+## The app (`/app`)
+
+The CRM behind the waitlist: pipeline board (drag and drop), deal detail with deliverables and payments, deadlines, payments with overdue flags, rate card with a public share link (`/r/<slug>`), settings, and a daily reminder email. The free plan is limited to 3 active deals (enforced by a database trigger); a `plan` column on `profiles` is ready for Pro.
+
+Setup, in order:
+
+1. **Database.** In the Supabase SQL editor run [`supabase/app-schema.sql`](supabase/app-schema.sql) (after `schema.sql`). It creates `profiles`, `deals`, `deliverables`, `payments`, `rate_card_items` and `reminders_sent`, with row level security so each user only sees their own rows.
+2. **Auth URLs.** Supabase → **Authentication → URL Configuration**: set **Site URL** to `https://dealdesk.craftloop.ca` and add `https://dealdesk.craftloop.ca/auth/callback` under **Redirect URLs**. Sign-in is by magic link (Email provider, enabled by default).
+3. **Email delivery.** Supabase's built-in mailer is heavily rate limited. Under **Authentication → SMTP Settings** enable custom SMTP: host `smtp.resend.com`, port `465`, username `resend`, password your Resend API key, sender `support@craftloop.ca`.
+4. **Env vars** on the Worker (plain variables are fine, they are read at runtime): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the anon or publishable key, safe for the browser), `CRON_SECRET` (secret, 16+ random characters), and optionally `SIGNUP_MODE`.
+5. **Access control.** `SIGNUP_MODE=waitlist` (default) lets only people on the waitlist (and existing users) sign in; `SIGNUP_MODE=open` lets anyone.
+6. **Reminders.** `wrangler.jsonc` schedules a daily cron (`0 14 * * *`, UTC) that calls `/api/cron/reminders`. One digest email per user: deliverables due within 2 days (once), overdue deliverables (once), overdue payments (at most every 7 days). Users can turn them off in Settings.
+
+Dates in the app use UTC.
+
 ## Admin dashboard
 
 `/admin` shows visitors, page views, signups and the visitor-to-signup conversion rate, plus total signups, today / 7-day / 30-day counts, a 30-day chart, a platform breakdown and a searchable, paginated signup table with CSV export. Times are UTC.

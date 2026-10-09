@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { formatMoney, parseMoney } from "@/lib/app/format";
+import { parseMoney } from "@/lib/app/format";
 import type { Profile, RateItem } from "@/lib/app/types";
 import { btnGhost, btnPrimary, inputClass } from "@/components/app/pill";
 
@@ -113,7 +113,6 @@ export function RateCardEditor({ initialItems, profile, siteUrl }: { initialItem
           <input name="price" required inputMode="decimal" placeholder="1200" aria-label="New price" className={inputClass} />
           <button className={btnPrimary}>Add</button>
         </form>
-        <p className="mt-3 text-xs text-muted">Total value shown to brands is each line&apos;s price. Example: {formatMoney(120000, profile.currency)}.</p>
       </section>
     </div>
   );
