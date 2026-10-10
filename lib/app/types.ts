@@ -45,6 +45,27 @@ export type Profile = {
   rate_card_public: boolean;
   rate_card_intro: string | null;
   reminders_enabled: boolean;
+  timezone: string;
+  reminder_hour: number;
+  reminder_lead_days: number;
+  onboarded: boolean;
+  plan_status: string | null;
+  plan_period_end: string | null;
+};
+
+export type DealNote = { id: string; deal_id: string; kind: "note" | "event"; body: string; created_at: string };
+
+export type TemplateDeliverable = { title: string; offset_days: number | null };
+export type TemplatePayment = { label: string; percent: number; due_offset_days: number | null };
+
+export type DealTemplate = {
+  id: string;
+  name: string;
+  platform: string | null;
+  amount_cents: number;
+  deliverables: TemplateDeliverable[];
+  payments: TemplatePayment[];
+  notes: string | null;
 };
 
 export const FREE_LIMIT_MESSAGE =

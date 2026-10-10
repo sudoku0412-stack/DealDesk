@@ -1,19 +1,35 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { formatMoney, parseMoney, relativeDue } from "@/lib/app/format";
 import { DELIVERED_BLOCKED_MESSAGE, stageBlocker } from "@/lib/app/rules";
-import { FREE_LIMIT_MESSAGE, STAGES, type Deal, type Deliverable, type Payment, type Stage } from "@/lib/app/types";
+import { FREE_LIMIT_MESSAGE, STAGES, type Deal, type DealTemplate, type Deliverable, type Payment, type Stage } from "@/lib/app/types";
+import { BUILTIN_TEMPLATES, applyTemplate, findTemplate } from "@/lib/app/templates";
 import { PLATFORMS } from "@/lib/config";
 import { Pill, btnGhost, btnPrimary, inputClass } from "@/components/app/pill";
 
-type Props = { initialDeals: Deal[]; deliverables: Deliverable[]; payments: Payment[]; currency: string; plan: "free" | "pro"; today: string };
+type Props = {
+  initialDeals: Deal[];
+  deliverables: Deliverable[];
+  payments: Payment[];
+  templates: DealTemplate[];
+  currency: string;
+  plan: "free" | "pro";
+  today: string;
+  onboarded: boolean;
+};
 type Notice = { text: string; dealId?: string; brand?: string };
 
-export function Board({ initialDeals, deliverables, payments, currency, plan, today }: Props) {
+export function Board({ initialDeals, deliverables: initialDeliverables, payments: initialPayments, templates, currency, plan, today, onboarded: initialOnboarded }: Props) {
   const [deals, setDeals] = useState(initialDeals);
+  const [deliverables, setDeliverables] = useState(initialDeliverables);
+  const [payments, setPayments] = useState(initialPayments);
+  const [onboarded, setOnboarded] = useState(initialOnboarded);
+  const [tplId, setTplId] = useState("");
+  const [platformVal, setPlatformVal] = useState("");
+  const [amountVal, setAmountVal] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
@@ -128,31 +144,79 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
     }
   }
 
+  function pickTemplate(id: string) {
+    setTplId(id);
+    const t = id ? findTemplate(id, templates) : null;
+    if (t) {
+      setPlatformVal(t.platform ?? "");
+      if (t.amount_cents > 0) setAmountVal(String(t.amount_cents / 100));
+    }
+  }
+
+  /** Inserts a deal (optionally from a template) and updates local state. Returns an error message or null. */
+  async function insertDeal(fields: Partial<Deal> & { brand: string }, template: DealTemplate | null): Promise<string | null> {
+    const db = supabaseBrowser();
+    const { data, error } = await db.from("deals").insert(fields).select("*").single();
+    if (error || !data) return error?.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : "Could not save the deal. Try again.";
+    const deal = data as Deal;
+    setDeals((d) => [deal, ...d]);
+    if (template) {
+      const added = await applyTemplate(db, deal.id, template, deal.amount_cents, today);
+      setDeliverables((x) => [...x, ...added.deliverables]);
+      setPayments((x) => [...x, ...added.payments]);
+    }
+    return null;
+  }
+
   async function createDeal(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const f = new FormData(form);
-    const amount = parseMoney(String(f.get("amount") || "0"));
+    const amount = parseMoney(amountVal || "0");
     if (amount === null) return setFormError("Enter a valid amount.");
     setSaving(true);
     setFormError(null);
-    const { data, error } = await supabaseBrowser()
-      .from("deals")
-      .insert({
+    const err = await insertDeal(
+      {
         brand: String(f.get("brand")).trim(),
-        platform: String(f.get("platform") || "") || null,
+        platform: platformVal || null,
         amount_cents: amount,
         contact_name: String(f.get("contact_name") || "").trim() || null,
         contact_email: String(f.get("contact_email") || "").trim() || null,
-      })
-      .select("*")
-      .single();
+      },
+      tplId ? findTemplate(tplId, templates) : null,
+    );
     setSaving(false);
-    if (error || !data) return setFormError(error?.message.includes("free_limit") ? FREE_LIMIT_MESSAGE : "Could not save the deal. Try again.");
-    setDeals((d) => [data as Deal, ...d]);
+    if (err) return setFormError(err);
     dialog.current?.close();
     form.reset();
+    setTplId("");
+    setPlatformVal("");
+    setAmountVal("");
   }
+
+  async function addSampleDeal() {
+    setNotice(null);
+    const tpl = BUILTIN_TEMPLATES[0];
+    const err = await insertDeal(
+      { brand: "Sample brand (delete me)", platform: "YouTube", amount_cents: 150000, contact_name: "Alex Morgan", contact_email: "alex@samplebrand.com" },
+      tpl,
+    );
+    if (err) setNotice({ text: err });
+  }
+
+  async function finishOnboarding() {
+    setOnboarded(true);
+    const db = supabaseBrowser();
+    const { data } = await db.auth.getUser();
+    if (data.user) await db.from("profiles").update({ onboarded: true }).eq("id", data.user.id);
+  }
+
+  const checklistDone = deals.length > 0 && deliverables.some((d) => d.due_date) && payments.length > 0;
+  useEffect(() => {
+    if (!onboarded && checklistDone) void finishOnboarding();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checklistDone, onboarded]);
 
   const total = deals.filter((d) => d.stage !== "paid").reduce((a, d) => a + d.amount_cents, 0);
   const dragged = dragId ? deals.find((d) => d.id === dragId) : null;
@@ -173,6 +237,54 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
           + New deal
         </button>
       </div>
+
+      {deals.length === 0 && (
+        <section aria-labelledby="welcome-title" className="glass mt-6 rounded-3xl p-6 sm:p-8">
+          <h2 id="welcome-title" className="text-2xl font-extrabold">
+            Welcome to DealDesk
+          </h2>
+          <p className="mt-2 max-w-xl text-muted">Track every brand deal from pitch to paid. Here is how it works:</p>
+          <ol className="mt-4 grid gap-3 sm:grid-cols-3">
+            {[
+              ["1", "Add a deal", "Brand, value and platform. Start from a template to prefill deliverables and payments."],
+              ["2", "Move it forward", "Drag it across the pipeline. We remind you before every deadline."],
+              ["3", "Get paid", "Log invoices and due dates. Late payments get flagged."],
+            ].map(([n, t, d]) => (
+              <li key={n} className="rounded-2xl border border-line bg-surface-solid p-4">
+                <span className="grid size-7 place-items-center rounded-full bg-accent text-sm font-extrabold text-accent-ink">{n}</span>
+                <p className="mt-2 font-display font-bold">{t}</p>
+                <p className="mt-1 text-sm text-muted">{d}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button className={btnPrimary} onClick={() => dialog.current?.showModal()}>
+              Add your first deal
+            </button>
+            <button className={btnGhost} onClick={addSampleDeal}>
+              Try a sample deal
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!onboarded && deals.length > 0 && (
+        <section aria-label="Getting started" className="glass mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl p-4 text-sm">
+          <p className="font-display font-bold">Getting started</p>
+          {[
+            ["Add a deal", deals.length > 0],
+            ["Add a deliverable with a date", deliverables.some((d) => d.due_date)],
+            ["Track a payment", payments.length > 0],
+          ].map(([label, done]) => (
+            <p key={String(label)} className={done ? "text-green-text" : "text-muted"}>
+              {done ? "✓" : "○"} {label}
+            </p>
+          ))}
+          <button onClick={finishOnboarding} className="ml-auto font-semibold underline underline-offset-4">
+            Dismiss
+          </button>
+        </section>
+      )}
 
       {(notice || atLimit) && (
         <div role="alert" className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-3 text-sm">
@@ -316,12 +428,37 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
       <dialog ref={dialog} className="m-auto w-[min(92vw,28rem)] rounded-3xl border border-line bg-bg p-0 text-fg backdrop:bg-black/50">
         <form onSubmit={createDeal} className="space-y-3 p-6">
           <h2 className="text-2xl font-extrabold">New deal</h2>
+          <label className="block text-sm font-semibold">
+            Start from a template
+            <select value={tplId} onChange={(e) => pickTemplate(e.target.value)} className={`${inputClass} mt-1 font-normal`}>
+              <option value="">Blank deal</option>
+              {templates.length > 0 && (
+                <optgroup label="Your templates">
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Starter templates">
+                {BUILTIN_TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </label>
           <Field label="Brand" name="brand" required maxLength={120} placeholder="Glowbar Energy" />
           <div className="grid grid-cols-2 gap-3">
-            <Field label={`Amount (${currency})`} name="amount" inputMode="decimal" placeholder="2400" />
+            <label className="block text-sm font-semibold">
+              {`Amount (${currency})`}
+              <input value={amountVal} onChange={(e) => setAmountVal(e.target.value)} inputMode="decimal" placeholder="2400" className={`${inputClass} mt-1 font-normal`} />
+            </label>
             <label className="block text-sm font-semibold">
               Platform
-              <select name="platform" className={`${inputClass} mt-1`} defaultValue="">
+              <select value={platformVal} onChange={(e) => setPlatformVal(e.target.value)} className={`${inputClass} mt-1`}>
                 <option value="">Select…</option>
                 {PLATFORMS.map((p) => (
                   <option key={p}>{p}</option>
@@ -329,6 +466,7 @@ export function Board({ initialDeals, deliverables, payments, currency, plan, to
               </select>
             </label>
           </div>
+          {tplId && <p className="text-xs text-muted">Deliverables and payment milestones from this template are added automatically. Payments need an amount above.</p>}
           <Field label="Contact name" name="contact_name" maxLength={120} />
           <Field label="Contact email" name="contact_email" type="email" maxLength={254} />
           <p role="alert" className="min-h-5 text-sm font-medium text-[#c0270a] dark:text-[#ff9a7a]">

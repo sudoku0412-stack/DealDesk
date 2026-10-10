@@ -167,3 +167,75 @@ grant usage on schema public to authenticated, service_role;
 grant select, update (display_name, currency, rate_card_public, rate_card_intro, reminders_enabled) on public.profiles to authenticated;
 grant select, insert, update, delete on public.deals, public.deliverables, public.payments, public.rate_card_items to authenticated;
 grant all on public.profiles, public.deals, public.deliverables, public.payments, public.rate_card_items, public.reminders_sent to service_role;
+
+-- ═════════════════════════════════════════════════════════════════════
+-- v2: onboarding, notes timeline, templates, reminder timing, billing
+-- ═════════════════════════════════════════════════════════════════════
+
+alter table public.profiles add column if not exists timezone text not null default 'UTC';
+alter table public.profiles add column if not exists reminder_hour smallint not null default 9 check (reminder_hour between 0 and 23);
+alter table public.profiles add column if not exists reminder_lead_days smallint not null default 2 check (reminder_lead_days between 0 and 14);
+alter table public.profiles add column if not exists onboarded boolean not null default false;
+alter table public.profiles add column if not exists stripe_customer_id text;
+alter table public.profiles add column if not exists stripe_subscription_id text;
+alter table public.profiles add column if not exists plan_status text;
+alter table public.profiles add column if not exists plan_period_end timestamptz;
+create unique index if not exists profiles_stripe_customer_idx on public.profiles (stripe_customer_id) where stripe_customer_id is not null;
+
+-- Notes + automatic activity timeline per deal.
+create table if not exists public.deal_notes (
+  id uuid primary key default gen_random_uuid(),
+  deal_id uuid not null references public.deals (id) on delete cascade,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  kind text not null default 'note' check (kind in ('note','event')),
+  body text not null check (char_length(body) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+create index if not exists deal_notes_deal_idx on public.deal_notes (deal_id, created_at desc);
+
+-- Reusable deal templates (deliverables and payments are stored as JSON arrays).
+create table if not exists public.deal_templates (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 80),
+  platform text check (platform in ('YouTube','TikTok','Instagram','Twitch','Other')),
+  amount_cents bigint not null default 0 check (amount_cents >= 0),
+  deliverables jsonb not null default '[]'::jsonb,
+  payments jsonb not null default '[]'::jsonb,
+  notes text check (char_length(notes) <= 5000),
+  created_at timestamptz not null default now()
+);
+create index if not exists deal_templates_user_idx on public.deal_templates (user_id);
+
+-- Automatic timeline events.
+create or replace function public.log_deal_events() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into public.deal_notes (deal_id, user_id, kind, body) values (new.id, new.user_id, 'event', 'Deal created');
+  elsif old.stage is distinct from new.stage then
+    insert into public.deal_notes (deal_id, user_id, kind, body) values (new.id, new.user_id, 'event', 'Moved from ' || old.stage || ' to ' || new.stage);
+  elsif old.archived is distinct from new.archived then
+    insert into public.deal_notes (deal_id, user_id, kind, body) values (new.id, new.user_id, 'event', case when new.archived then 'Archived' else 'Restored' end);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists deals_log_events on public.deals;
+create trigger deals_log_events after insert or update of stage, archived on public.deals
+  for each row execute function public.log_deal_events();
+
+alter table public.deal_notes enable row level security;
+alter table public.deal_templates enable row level security;
+
+drop policy if exists "own notes" on public.deal_notes;
+create policy "own notes" on public.deal_notes for all to authenticated using (user_id = auth.uid())
+  with check (user_id = auth.uid() and exists (select 1 from public.deals d where d.id = deal_id and d.user_id = auth.uid()));
+
+drop policy if exists "own templates" on public.deal_templates;
+create policy "own templates" on public.deal_templates for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+grant select, insert, delete on public.deal_notes to authenticated;
+grant select, insert, update, delete on public.deal_templates to authenticated;
+grant update (timezone, reminder_hour, reminder_lead_days, onboarded) on public.profiles to authenticated;
+grant all on public.deal_notes, public.deal_templates to service_role;

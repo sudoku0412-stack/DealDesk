@@ -1,18 +1,22 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { DeadlineList, type DeadlineRow } from "@/components/app/deadline-list";
-import { todayISO } from "@/lib/app/format";
+import { todayIn } from "@/lib/app/format";
+import type { Profile } from "@/lib/app/types";
 
 export const metadata: Metadata = { title: "Deadlines" };
 
 export default async function DeadlinesPage() {
   const supabase = await createClient();
-  const { data } = await supabase
+  const [{ data: profile }, { data }] = await Promise.all([
+    supabase.from("profiles").select("timezone").single<Pick<Profile, "timezone">>(),
+    supabase
     .from("deliverables")
     .select("id,deal_id,title,due_date,done,deals(brand)")
     .order("due_date", { ascending: true, nullsFirst: false })
-    .returns<(Omit<DeadlineRow, "brand"> & { deals: { brand: string } | null })[]>();
+    .returns<(Omit<DeadlineRow, "brand"> & { deals: { brand: string } | null })[]>(),
+  ]);
 
   const rows: DeadlineRow[] = (data ?? []).map(({ deals, ...r }) => ({ ...r, brand: deals?.brand ?? "" }));
-  return <DeadlineList initial={rows} today={todayISO()} />;
+  return <DeadlineList initial={rows} today={todayIn(profile?.timezone)} />;
 }

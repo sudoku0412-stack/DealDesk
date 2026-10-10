@@ -10,6 +10,27 @@ export function parseMoney(input: string): number | null {
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 
+/** Today's date (YYYY-MM-DD) in an IANA time zone. Falls back to UTC for an unknown zone. */
+export function todayIn(timeZone?: string | null, now = new Date()) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: timeZone || "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  } catch {
+    return now.toISOString().slice(0, 10);
+  }
+}
+
+/** The hour (0-23) it currently is in an IANA time zone. */
+export function hourIn(timeZone?: string | null, now = new Date()) {
+  try {
+    const h = new Intl.DateTimeFormat("en-GB", { timeZone: timeZone || "UTC", hour: "2-digit", hourCycle: "h23" }).format(now);
+    return Number.parseInt(h, 10) % 24;
+  } catch {
+    return now.getUTCHours();
+  }
+}
+
+export const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+
 /** Whole days from `today` to `date` (negative = past). Both are YYYY-MM-DD. */
 export function daysBetween(today: string, date: string) {
   return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
