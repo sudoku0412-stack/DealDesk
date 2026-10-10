@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DealEditor } from "@/components/app/deal-editor";
 import { todayIn } from "@/lib/app/format";
-import type { Deal, Deliverable, Payment, Profile } from "@/lib/app/types";
+import type { Deal, DealNote, Deliverable, Payment, Profile } from "@/lib/app/types";
 
 export const metadata: Metadata = { title: "Deal" };
 
@@ -12,11 +12,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
 
   const supabase = await createClient();
-  const [deal, deliverables, payments, profile] = await Promise.all([
+  const [deal, deliverables, payments, profile, notes] = await Promise.all([
     supabase.from("deals").select("*").eq("id", id).maybeSingle<Deal>(),
     supabase.from("deliverables").select("id,deal_id,title,due_date,done").eq("deal_id", id).order("due_date", { ascending: true, nullsFirst: false }).returns<Deliverable[]>(),
     supabase.from("payments").select("*").eq("deal_id", id).order("created_at").returns<Payment[]>(),
     supabase.from("profiles").select("currency,timezone").single<Pick<Profile, "currency" | "timezone">>(),
+    supabase.from("deal_notes").select("id,deal_id,kind,body,created_at").eq("deal_id", id).order("created_at", { ascending: false }).returns<DealNote[]>(),
   ]);
   if (!deal.data) notFound();
 
@@ -25,6 +26,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       deal={deal.data}
       initialDeliverables={deliverables.data ?? []}
       initialPayments={payments.data ?? []}
+      initialNotes={notes.data ?? []}
       currency={profile.data?.currency ?? "USD"}
       today={todayIn(profile.data?.timezone)}
     />

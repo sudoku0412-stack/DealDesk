@@ -19,10 +19,11 @@ type Props = {
   plan: "free" | "pro";
   today: string;
   onboarded: boolean;
+  timezone: string;
 };
 type Notice = { text: string; dealId?: string; brand?: string };
 
-export function Board({ initialDeals, deliverables: initialDeliverables, payments: initialPayments, templates, currency, plan, today, onboarded: initialOnboarded }: Props) {
+export function Board({ initialDeals, deliverables: initialDeliverables, payments: initialPayments, templates, currency, plan, today, onboarded: initialOnboarded, timezone }: Props) {
   const [deals, setDeals] = useState(initialDeals);
   const [deliverables, setDeliverables] = useState(initialDeliverables);
   const [payments, setPayments] = useState(initialPayments);
@@ -211,6 +212,22 @@ export function Board({ initialDeals, deliverables: initialDeliverables, payment
     const { data } = await db.auth.getUser();
     if (data.user) await db.from("profiles").update({ onboarded: true }).eq("id", data.user.id);
   }
+
+  // New accounts default to UTC. Adopt the browser's time zone once so reminders arrive at a sensible local hour.
+  useEffect(() => {
+    if (timezone !== "UTC") return;
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (!tz || tz === "UTC") return;
+      const db = supabaseBrowser();
+      void (async () => {
+        const { data } = await db.auth.getUser();
+        if (data.user) await db.from("profiles").update({ timezone: tz }).eq("id", data.user.id);
+      })();
+    } catch {
+      /* ignore */
+    }
+  }, [timezone]);
 
   const checklistDone = deals.length > 0 && deliverables.some((d) => d.due_date) && payments.length > 0;
   useEffect(() => {

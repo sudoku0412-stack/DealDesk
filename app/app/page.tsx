@@ -26,6 +26,7 @@ export default async function PipelinePage() {
       plan={profile.data?.plan ?? "free"}
       today={todayIn(profile.data?.timezone)}
       onboarded={profile.data?.onboarded ?? true}
+      timezone={profile.data?.timezone ?? "UTC"}
     />
   );
 }

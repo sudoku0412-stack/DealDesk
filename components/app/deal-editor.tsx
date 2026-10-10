@@ -6,19 +6,20 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { formatMoney, parseMoney, relativeDue } from "@/lib/app/format";
 import { DELIVERED_BLOCKED_MESSAGE, stageBlocker } from "@/lib/app/rules";
-import { FREE_LIMIT_MESSAGE, STAGES, type Deal, type Deliverable, type Payment, type Stage } from "@/lib/app/types";
+import { FREE_LIMIT_MESSAGE, STAGES, type Deal, type DealNote, type Deliverable, type Payment, type Stage } from "@/lib/app/types";
 import { PLATFORMS } from "@/lib/config";
 import { Pill, btnGhost, btnPrimary, inputClass } from "@/components/app/pill";
 import { DateField } from "@/components/app/date-field";
 
-type Props = { deal: Deal; initialDeliverables: Deliverable[]; initialPayments: Payment[]; currency: string; today: string };
+type Props = { deal: Deal; initialDeliverables: Deliverable[]; initialPayments: Payment[]; initialNotes: DealNote[]; currency: string; today: string };
 
-export function DealEditor({ deal: initial, initialDeliverables, initialPayments, currency, today }: Props) {
+export function DealEditor({ deal: initial, initialDeliverables, initialPayments, initialNotes, currency, today }: Props) {
   const router = useRouter();
   const db = supabaseBrowser();
   const [deal, setDeal] = useState(initial);
   const [deliverables, setDeliverables] = useState(initialDeliverables);
   const [payments, setPayments] = useState(initialPayments);
+  const [notes, setNotes] = useState(initialNotes);
   const [status, setStatus] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
 
   /** Shows an error message only when `error` is set. Returns true if there was an error. */
@@ -55,6 +56,48 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
     if (fail(error, "Could not save. Try again.")) return;
     setDeal({ ...deal, ...patch });
     setStatus({ tone: "ok", text: "Saved." });
+    void refreshNotes();
+  }
+
+  async function refreshNotes() {
+    const { data } = await db.from("deal_notes").select("id,deal_id,kind,body,created_at").eq("deal_id", deal.id).order("created_at", { ascending: false });
+    if (data) setNotes(data as DealNote[]);
+  }
+
+  async function addNote(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const body = String(new FormData(form).get("note") || "").trim();
+    if (!body) return;
+    const { error } = await db.from("deal_notes").insert({ deal_id: deal.id, kind: "note", body });
+    if (fail(error, "Could not add the note.")) return;
+    form.reset();
+    await refreshNotes();
+  }
+
+  async function removeNote(id: string) {
+    const { error } = await db.from("deal_notes").delete().eq("id", id);
+    if (!fail(error, "Could not delete the note.")) setNotes((all) => all.filter((n) => n.id !== id));
+  }
+
+  async function saveAsTemplate() {
+    const name = window.prompt("Name this template", `${deal.brand} template`)?.trim();
+    if (!name) return;
+    const created = deal.created_at.slice(0, 10);
+    const offset = (iso: string | null) => (iso ? Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${created}T00:00:00Z`)) / 86_400_000) : null);
+    const { error } = await db.from("deal_templates").insert({
+      name: name.slice(0, 80),
+      platform: deal.platform,
+      amount_cents: deal.amount_cents,
+      notes: deal.notes,
+      deliverables: deliverables.map((d) => ({ title: d.title, offset_days: offset(d.due_date) })),
+      payments: payments.map((p) => ({
+        label: p.label,
+        percent: deal.amount_cents > 0 ? Math.min(100, Math.round((p.amount_cents / deal.amount_cents) * 100)) : 100,
+        due_offset_days: offset(p.due_on),
+      })),
+    });
+    if (!fail(error, "Could not save the template.")) setStatus({ tone: "ok", text: `Saved template "${name}". Pick it when you create a new deal.` });
   }
 
   async function addDeliverable(e: React.FormEvent<HTMLFormElement>) {
@@ -234,7 +277,35 @@ export function DealEditor({ deal: initial, initialDeliverables, initialPayments
         </div>
       </div>
 
+      <section className="glass rounded-2xl p-5" aria-labelledby="activity-title">
+        <h2 id="activity-title" className="font-display text-lg font-bold">Notes and activity</h2>
+        <form onSubmit={addNote} className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <input name="note" required maxLength={2000} placeholder="Add a note (call summary, usage rights, next step)" aria-label="New note" className={inputClass} />
+          <button className={btnGhost}>Add note</button>
+        </form>
+        <ol className="mt-4 space-y-3 border-l-2 border-line pl-4">
+          {notes.map((n) => (
+            <li key={n.id} className="relative text-sm">
+              <span className={`absolute -left-[1.4rem] top-1.5 size-2.5 rounded-full ${n.kind === "note" ? "bg-accent" : "bg-muted"}`} aria-hidden="true" />
+              <p className={n.kind === "note" ? "font-medium" : "text-muted"}>{n.body}</p>
+              <p className="mt-0.5 flex items-center gap-3 text-xs text-muted">
+                <time dateTime={n.created_at} suppressHydrationWarning>
+                  {new Date(n.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                </time>
+                {n.kind === "note" && (
+                  <button onClick={() => removeNote(n.id)} className="underline underline-offset-4 hover:text-fg">
+                    Delete
+                  </button>
+                )}
+              </p>
+            </li>
+          ))}
+          {notes.length === 0 && <li className="text-sm text-muted">No activity yet.</li>}
+        </ol>
+      </section>
+
       <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+        <button onClick={saveAsTemplate} className={btnGhost}>Save as template</button>
         <button onClick={archive} className={btnGhost}>Archive deal</button>
         <button onClick={remove} className={`${btnGhost} text-[#c0270a] dark:text-[#ff9a7a]`}>Delete deal</button>
       </div>

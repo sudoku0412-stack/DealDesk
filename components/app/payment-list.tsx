@@ -32,6 +32,9 @@ export function PaymentList({ initial, currency, today }: { initial: PaymentRow[
         <h1 className="text-3xl font-extrabold">Payments</h1>
         <p className="mt-1 text-muted">What you&apos;re owed and what&apos;s late. Add payments from inside a deal.</p>
       </div>
+      <a href="/api/export/payments" className="inline-flex h-10 items-center rounded-full border border-line px-4 text-sm font-semibold hover:bg-surface">
+        Export CSV
+      </a>
 
       <section aria-label="Totals" className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card label="Outstanding" value={formatMoney(sum(unpaid), currency)} hint={`${unpaid.length} unpaid`} />
