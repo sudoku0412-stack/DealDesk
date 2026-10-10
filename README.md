@@ -44,6 +44,8 @@ Without Supabase credentials the page still renders; the form returns a friendly
 | `SUPABASE_SERVICE_ROLE_KEY` | server | Service role key. Never expose it to the browser or commit it |
 | `RESEND_API_KEY` | server | Resend API key |
 | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | public | Optional. Your Plausible site domain; enables the `waitlist_signup` event |
+| `GOOGLE_AUTH_ENABLED` | server | `true` shows the Google button (provider must be enabled in Supabase) |
+| `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_WAITLIST_COUPON_ID` | server | Optional Stripe billing, see above |
 | `ADMIN_PASSWORD` | server | Password for `/admin` (12+ characters). Store as a **secret** |
 | `EMAIL_FROM` | server | Sender, e.g. `DealDesk <support@craftloop.ca>` (domain must be verified in Resend) |
 
@@ -123,11 +125,39 @@ Setup, in order:
 3. **Email delivery.** Supabase's built-in mailer is heavily rate limited. Under **Authentication → SMTP Settings** enable custom SMTP: host `smtp.resend.com`, port `465`, username `resend`, password your Resend API key, sender `support@craftloop.ca`.
 4. **Env vars** on the Worker (plain variables are fine, they are read at runtime): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (the anon or publishable key, safe for the browser), `CRON_SECRET` (secret, 16+ random characters), and optionally `SIGNUP_MODE`.
 5. **Access control.** `SIGNUP_MODE=waitlist` (default) lets only people on the waitlist (and existing users) sign in; `SIGNUP_MODE=open` lets anyone.
-6. **Reminders.** `wrangler.jsonc` schedules a daily cron (`0 14 * * *`, UTC) that calls `/api/cron/reminders`. One digest email per user: deliverables due within 2 days (once), overdue deliverables (once), overdue payments (at most every 7 days). Users can turn them off in Settings.
+6. **Reminders.** `wrangler.jsonc` schedules a hourly cron (`0 * * * *`) that calls `/api/cron/reminders`. Each user gets one digest a day at their chosen local hour: deliverables due within their lead time (once), overdue deliverables (once), overdue payments (at most every 7 days). Users can change the timing or turn them off in Settings.
 
 Each pipeline stage has its own color, and a card's color animates when it moves. A deal can only move to **Delivered** once it has deliverables and every one is marked done. The UI explains why when a move is refused, and the `enforce_stage_rules` trigger in `app-schema.sql` enforces it in the database. After pulling this change, re-run `supabase/app-schema.sql` (it is safe to re-run).
 
-Dates in the app use UTC.
+### Features added in v2
+
+- **Onboarding:** a welcome screen with a one-click sample deal, a getting-started checklist, and starter deal templates (YouTube, Instagram, TikTok, Twitch). Users can save any deal as their own template and manage templates in Settings.
+- **Notes and activity timeline** on every deal. Stage changes and archiving are logged automatically by a database trigger.
+- **CSV export** of deals and payments (Settings and the Payments page). Formula-injection safe.
+- **Reminder timing:** each user picks a time zone, a send hour and how many days ahead to be warned. The cron runs **hourly** (`0 * * * *`) and each person gets at most one digest a day at their chosen local hour. Dates in the app ("today", overdue) use the user's time zone.
+- **Google sign-in** (optional) and **Stripe billing** (optional), described below.
+
+After pulling these changes re-run `supabase/app-schema.sql` once (it is idempotent): it adds the new profile columns, `deal_notes`, `deal_templates` and the timeline trigger.
+
+### Google sign-in
+
+1. Google Cloud Console: **APIs & Services → Credentials → Create credentials → OAuth client ID** (type: Web application). Add the redirect URI shown in Supabase under **Authentication → Sign In / Providers → Google** (it looks like `https://<project-ref>.supabase.co/auth/v1/callback`).
+2. Paste the client ID and secret into that Supabase Google provider page and enable it.
+3. Set the Worker variable `GOOGLE_AUTH_ENABLED=true`. The "Continue with Google" button appears on `/login`.
+
+While `SIGNUP_MODE=waitlist`, a new Google account that is not on the waitlist is deleted right after sign-in and sent back to the login page.
+
+### Stripe billing (Pro plan)
+
+1. In Stripe create a **Product** "DealDesk Pro" with a recurring **Price**. Copy the price id (`price_...`).
+2. Optional early-access discount: **Coupons → New**: 50% off, duration **Forever**. Copy the coupon id. Waitlist members get it applied automatically at checkout; everyone else can enter promotion codes.
+3. **Developers → Webhooks → Add endpoint**: URL `https://dealdesk.craftloop.ca/api/stripe/webhook`, events `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret (`whsec_...`).
+4. **Settings → Billing → Customer portal**: enable it (cancel, update card).
+5. Worker variables: `STRIPE_SECRET_KEY` (secret), `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` (secret) and optionally `STRIPE_WAITLIST_COUPON_ID`.
+
+Until `STRIPE_SECRET_KEY` and `STRIPE_PRICE_ID` are set, Settings shows "Pro is coming soon" and no upgrade button. Use Stripe **test mode** keys first and the test card `4242 4242 4242 4242`.
+
+Dates in the app use each user's own time zone.
 
 ## Admin dashboard
 
